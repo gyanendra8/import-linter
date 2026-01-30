@@ -13,6 +13,31 @@ class AlertLevel(enum.Enum):
     ERROR = "error"
 
 
+def _has_inline_ignore(line_contents: str, keyword: str) -> bool:
+    return keyword in line_contents
+
+
+def get_inline_ignored_lines(
+    graph: ImportGraph,
+    inline_ignore_keyword: str,
+) -> set[tuple[str, str, int]]:
+    ignored_lines = set()
+    for module in graph.modules:
+        for imported_module in graph.find_modules_directly_imported_by(module):
+            import_details = graph.get_import_details(
+                importer=module,
+                imported=imported_module,
+            )
+            for detail in import_details:
+                if _has_inline_ignore(detail.get("line_contents", ""), inline_ignore_keyword):
+                    ignored_lines.add((
+                        detail["importer"],
+                        detail["imported"],
+                        detail["line_number"],
+                    ))
+    return ignored_lines
+
+
 def remove_ignored_imports(
     graph: ImportGraph,
     ignore_imports: Sequence[ImportExpression] | None,
@@ -63,6 +88,17 @@ def remove_ignored_imports(
         )
 
     return warnings
+
+
+def filter_ignored_lines(
+    import_details: list[dict],
+    inline_ignored_lines: set[tuple[str, str, int]],
+) -> list[dict]:
+    return [
+        detail
+        for detail in import_details
+        if (detail["importer"], detail["imported"], detail["line_number"]) not in inline_ignored_lines
+    ]
 
 
 # Private functions

@@ -54,12 +54,23 @@ class AcyclicSiblingsContract(Contract):
             unmatched_alerting=self.unmatched_ignore_imports_alerting,  # type: ignore
         )
 
+        inline_ignored_lines = set()
+        if str(self.session_options.get("allow_inline_ignores")).lower() == "true":
+            inline_ignored_lines = contract_utils.get_inline_ignored_lines(
+                graph=graph,
+                inline_ignore_keyword=str(self.session_options.get("inline_ignore_keyword", "nolint")),
+            )
+
         cycle_breakers_by_package: dict[str, set[Import]] = {}
 
         for ancestor in sorted(ancestors):
             cycle_breakers_by_package_for_ancestor = self._nominate_cycle_breakers_recursively(
                 graph, ancestor, depth, descendants_to_skip, verbose
             )
+            if inline_ignored_lines:
+                cycle_breakers_by_package_for_ancestor = self._filter_cycle_breakers(
+                    cycle_breakers_by_package_for_ancestor, graph, inline_ignored_lines
+                )
             cycle_breakers_by_package.update(cycle_breakers_by_package_for_ancestor)
 
         return ContractCheck(
@@ -160,6 +171,26 @@ class AcyclicSiblingsContract(Contract):
                 PackageSummary(package, self._build_dependencies(package, cycle_breakers))
             )
         return summaries
+
+    def _filter_cycle_breakers(
+        self,
+        cycle_breakers_by_package: dict[str, set[Import]],
+        graph: grimp.ImportGraph,
+        inline_ignored_lines: set[tuple[str, str, int]],
+    ) -> dict[str, set[Import]]:
+        filtered = {}
+        for package, cycle_breakers in cycle_breakers_by_package.items():
+            filtered_breakers = set()
+            for importer, imported in cycle_breakers:
+                import_details = graph.get_import_details(importer=importer, imported=imported)
+                import_details = contract_utils.filter_ignored_lines(
+                    import_details, inline_ignored_lines
+                )
+                if import_details:
+                    filtered_breakers.add((importer, imported))
+            if filtered_breakers:
+                filtered[package] = filtered_breakers
+        return filtered
 
     def _build_dependencies(
         self, package: str, cycle_breakers: Set[Import]

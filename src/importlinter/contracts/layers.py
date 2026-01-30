@@ -146,6 +146,13 @@ class LayersContract(Contract):
             ignore_imports=self.ignore_imports,  # type: ignore
             unmatched_alerting=self.unmatched_ignore_imports_alerting,  # type: ignore
         )
+
+        inline_ignored_lines = set()
+        if str(self.session_options.get("allow_inline_ignores")).lower() == "true":
+            inline_ignored_lines = contract_utils.get_inline_ignored_lines(
+                graph=graph,
+                inline_ignore_keyword=str(self.session_options.get("inline_ignore_keyword", "nolint")),
+            )
         self.all_module_tails = self._get_all_module_tails_from_layers(self.layers)  # type: ignore
 
         containers = set()
@@ -164,7 +171,7 @@ class LayersContract(Contract):
             layers=self._grimpify_layers(self.layers),  # type: ignore
             containers=containers,
         )
-        invalid_chains = self._build_invalid_chains(dependencies, graph)
+        invalid_chains = self._build_invalid_chains(dependencies, graph, inline_ignored_lines)
 
         return ContractCheck(
             kept=not (dependencies or undeclared_modules),
@@ -284,13 +291,19 @@ class LayersContract(Contract):
         return Module(name)
 
     def _build_invalid_chains(
-        self, dependencies: set[grimp.PackageDependency], graph: grimp.ImportGraph
+        self,
+        dependencies: set[grimp.PackageDependency],
+        graph: grimp.ImportGraph,
+        inline_ignored_lines: set[tuple[str, str, int]],
     ) -> list[_LayerChainData]:
         return [
             {
                 "imported": dependency.imported,
                 "importer": dependency.importer,
-                "routes": [build_detailed_chain_from_route(c, graph) for c in dependency.routes],
+                "routes": [
+                    build_detailed_chain_from_route(c, graph, inline_ignored_lines)
+                    for c in dependency.routes
+                ],
             }
             for dependency in dependencies
         ]

@@ -192,13 +192,22 @@ def _render_direct_import(
             output.print_error(f"  {import_string}", bold=False)
 
 
-def build_detailed_chain_from_route(route: grimp.Route, graph: grimp.ImportGraph) -> DetailedChain:
+def build_detailed_chain_from_route(
+    route: grimp.Route,
+    graph: grimp.ImportGraph,
+    inline_ignored_lines: set[tuple[str, str, int]] | None = None,
+) -> DetailedChain:
     ordered_heads = sorted(route.heads)
     extra_firsts: list[Link] = [
         {
             "importer": head,
             "imported": route.middle[0],
-            "line_numbers": get_line_numbers(importer=head, imported=route.middle[0], graph=graph),
+            "line_numbers": get_line_numbers(
+                importer=head,
+                imported=route.middle[0],
+                graph=graph,
+                inline_ignored_lines=inline_ignored_lines,
+            ),
         }
         for head in ordered_heads[1:]
     ]
@@ -208,7 +217,10 @@ def build_detailed_chain_from_route(route: grimp.Route, graph: grimp.ImportGraph
             "imported": tail,
             "importer": route.middle[-1],
             "line_numbers": get_line_numbers(
-                imported=tail, importer=route.middle[-1], graph=graph
+                imported=tail,
+                importer=route.middle[-1],
+                graph=graph,
+                inline_ignored_lines=inline_ignored_lines,
             ),
         }
         for tail in ordered_tails[1:]
@@ -218,7 +230,12 @@ def build_detailed_chain_from_route(route: grimp.Route, graph: grimp.ImportGraph
         {
             "importer": importer,
             "imported": imported,
-            "line_numbers": get_line_numbers(importer=importer, imported=imported, graph=graph),
+            "line_numbers": get_line_numbers(
+                importer=importer,
+                imported=imported,
+                graph=graph,
+                inline_ignored_lines=inline_ignored_lines,
+            ),
         }
         for importer, imported in itertools.pairwise(chain_as_strings)
     ]
@@ -230,8 +247,14 @@ def build_detailed_chain_from_route(route: grimp.Route, graph: grimp.ImportGraph
 
 
 def get_line_numbers(
-    importer: str, imported: str, graph: grimp.ImportGraph
+    importer: str,
+    imported: str,
+    graph: grimp.ImportGraph,
+    inline_ignored_lines: set[tuple[str, str, int]] | None = None,
 ) -> tuple[int | None, ...]:
     details = graph.get_import_details(importer=importer, imported=imported)
+    if inline_ignored_lines:
+        from importlinter.application import contract_utils
+        details = contract_utils.filter_ignored_lines(details, inline_ignored_lines)
     line_numbers = tuple(i["line_number"] for i in details) if details else (None,)
     return line_numbers

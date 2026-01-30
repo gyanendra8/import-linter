@@ -117,6 +117,63 @@ class TestRemoveIgnoredImports:
             assert graph.count_imports() == 1  # The three matching imports have been removed.
             assert set(warnings) == set(expected_result)
 
+    def test_get_inline_ignored_lines_default_keyword(self):
+        from importlinter.application.contract_utils import get_inline_ignored_lines
+        graph = self._build_graph([
+            DirectImport(
+                importer=Module("mypackage.green"),
+                imported=Module("mypackage.yellow"),
+                line_number=1,
+                line_contents="from mypackage import yellow  # nolint",
+            ),
+            DirectImport(
+                importer=Module("mypackage.green"),
+                imported=Module("mypackage.blue"),
+                line_number=2,
+                line_contents="from mypackage import blue",
+            ),
+        ])
+
+        ignored_lines = get_inline_ignored_lines(graph, "nolint")
+
+        assert ignored_lines == {("mypackage.green", "mypackage.yellow", 1)}
+
+    def test_get_inline_ignored_lines_custom_keyword(self):
+        from importlinter.application.contract_utils import get_inline_ignored_lines
+        graph = self._build_graph([
+            DirectImport(
+                importer=Module("mypackage.green"),
+                imported=Module("mypackage.yellow"),
+                line_number=1,
+                line_contents="from mypackage import yellow  # noqa",
+            ),
+            DirectImport(
+                importer=Module("mypackage.green"),
+                imported=Module("mypackage.blue"),
+                line_number=2,
+                line_contents="from mypackage import blue",
+            ),
+        ])
+
+        ignored_lines = get_inline_ignored_lines(graph, "noqa")
+
+        assert ignored_lines == {("mypackage.green", "mypackage.yellow", 1)}
+
+    def test_filter_ignored_lines(self):
+        from importlinter.application.contract_utils import filter_ignored_lines
+        import_details = [
+            {"importer": "mypackage.green", "imported": "mypackage.yellow", "line_number": 1, "line_contents": "..."},
+            {"importer": "mypackage.green", "imported": "mypackage.yellow", "line_number": 2, "line_contents": "..."},
+            {"importer": "mypackage.green", "imported": "mypackage.blue", "line_number": 3, "line_contents": "..."},
+        ]
+        inline_ignored_lines = {("mypackage.green", "mypackage.yellow", 1)}
+
+        filtered = filter_ignored_lines(import_details, inline_ignored_lines)
+
+        assert len(filtered) == 2
+        assert filtered[0]["line_number"] == 2
+        assert filtered[1]["line_number"] == 3
+
     def _build_graph(self, direct_imports):
         graph = ImportGraph()
         for direct_import in direct_imports:

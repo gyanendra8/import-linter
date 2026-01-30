@@ -58,6 +58,13 @@ class IndependenceContract(Contract):
             unmatched_alerting=self.unmatched_ignore_imports_alerting,  # type: ignore
         )
 
+        inline_ignored_lines = set()
+        if str(self.session_options.get("allow_inline_ignores")).lower() == "true":
+            inline_ignored_lines = contract_utils.get_inline_ignored_lines(
+                graph=graph,
+                inline_ignore_keyword=str(self.session_options.get("inline_ignore_keyword", "nolint")),
+            )
+
         modules = list(module_expressions_to_modules(graph, self.modules))  # type: ignore
         self._check_all_modules_exist_in_graph(graph, modules)
 
@@ -65,7 +72,7 @@ class IndependenceContract(Contract):
             # A single layer consisting of siblings.
             layers=({module.name for module in modules},),
         )
-        invalid_chains = self._build_invalid_chains(dependencies, graph)
+        invalid_chains = self._build_invalid_chains(dependencies, graph, inline_ignored_lines)
 
         return ContractCheck(
             kept=not dependencies,
@@ -94,13 +101,19 @@ class IndependenceContract(Contract):
                 raise ValueError(f"Module '{module.name}' does not exist.")
 
     def _build_invalid_chains(
-        self, dependencies: set[grimp.PackageDependency], graph: grimp.ImportGraph
+        self,
+        dependencies: set[grimp.PackageDependency],
+        graph: grimp.ImportGraph,
+        inline_ignored_lines: set[tuple[str, str, int]],
     ) -> list[_SubpackageChainData]:
         return [
             {
                 "upstream_module": dependency.imported,
                 "downstream_module": dependency.importer,
-                "chains": [build_detailed_chain_from_route(c, graph) for c in dependency.routes],
+                "chains": [
+                    build_detailed_chain_from_route(c, graph, inline_ignored_lines)
+                    for c in dependency.routes
+                ],
             }
             for dependency in dependencies
         ]

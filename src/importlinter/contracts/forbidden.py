@@ -58,6 +58,13 @@ class ForbiddenContract(Contract):
             unmatched_alerting=self.unmatched_ignore_imports_alerting,  # type: ignore
         )
 
+        inline_ignored_lines = set()
+        if str(self.session_options.get("allow_inline_ignores")).lower() == "true":
+            inline_ignored_lines = contract_utils.get_inline_ignored_lines(
+                graph=graph,
+                inline_ignore_keyword=str(self.session_options.get("inline_ignore_keyword", "nolint")),
+            )
+
         source_modules = list(
             module_expressions_to_modules(
                 graph,
@@ -116,6 +123,12 @@ class ForbiddenContract(Contract):
                                 import_details = graph.get_import_details(
                                     importer=importer, imported=imported
                                 )
+                                original_count = len(import_details)
+                                import_details = contract_utils.filter_ignored_lines(
+                                    import_details, inline_ignored_lines
+                                )
+                                if original_count > 0 and not import_details:
+                                    continue
                                 line_numbers = tuple(j["line_number"] for j in import_details)
                                 chain_data.append(
                                     {

@@ -48,6 +48,13 @@ class ProtectedContract(Contract):
             unmatched_alerting=self.unmatched_ignore_imports_alerting,  # type: ignore
         )
 
+        inline_ignored_lines = set()
+        if str(self.session_options.get("allow_inline_ignores")).lower() == "true":
+            inline_ignored_lines = contract_utils.get_inline_ignored_lines(
+                graph=graph,
+                inline_ignore_keyword=str(self.session_options.get("inline_ignore_keyword", "nolint")),
+            )
+
         allowed_modules = {
             module.name
             for module in helpers.module_expressions_to_modules(
@@ -97,6 +104,12 @@ class ProtectedContract(Contract):
                         import_details = graph.get_import_details(
                             importer=illegal_importer, imported=protected_module
                         )
+                        original_count = len(import_details)
+                        import_details = contract_utils.filter_ignored_lines(
+                            import_details, inline_ignored_lines
+                        )
+                        if original_count > 0 and not import_details:
+                            continue
 
                         broken_contract_metadata_object.illegal_links.append(
                             {
