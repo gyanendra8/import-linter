@@ -130,8 +130,6 @@ class ForbiddenContract(Contract):
                                 import_details = contract_utils.filter_ignored_lines(
                                     import_details, inline_ignored_lines
                                 )
-                                if original_count > 0 and not import_details:
-                                    continue
                                 line_numbers = tuple(j["line_number"] for j in import_details)
                                 chain_data.append(
                                     {
@@ -140,7 +138,8 @@ class ForbiddenContract(Contract):
                                         "line_numbers": line_numbers,
                                     }
                                 )
-                            subpackage_chain_data["chains"].append(chain_data)  # type: ignore
+                            if chain_data:
+                                subpackage_chain_data["chains"].append(chain_data)  # type: ignore
                 if subpackage_chain_data["chains"]:
                     invalid_chains.append(subpackage_chain_data)
                 if verbose:
@@ -165,6 +164,8 @@ class ForbiddenContract(Contract):
     def render_broken_contract(self, check: ContractCheck) -> None:
         count = 0
         for chains_data in check.metadata["invalid_chains"]:
+            if not chains_data["chains"]:
+                continue
             downstream, upstream = (
                 chains_data["downstream_module"],
                 chains_data["upstream_module"],
@@ -202,7 +203,7 @@ class ForbiddenContract(Contract):
         external_forbidden_modules = self._get_external_forbidden_modules(forbidden_modules)
         if external_forbidden_modules:
             if self._graph_was_built_with_externals():
-                if not self.allow_external_subpackages:  # type: ignore
+                if str(self.allow_external_subpackages).lower() != "true":  # type: ignore
                     for module in external_forbidden_modules:
                         if module.root_package_name != module.name:
                             raise ValueError(

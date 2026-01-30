@@ -196,49 +196,58 @@ def build_detailed_chain_from_route(
     route: grimp.Route,
     graph: grimp.ImportGraph,
     inline_ignored_lines: set[tuple[str, str, int]] | None = None,
-) -> DetailedChain:
+) -> DetailedChain | None:
     ordered_heads = sorted(route.heads)
-    extra_firsts: list[Link] = [
-        {
-            "importer": head,
-            "imported": route.middle[0],
-            "line_numbers": get_line_numbers(
-                importer=head,
-                imported=route.middle[0],
-                graph=graph,
-                inline_ignored_lines=inline_ignored_lines,
-            ),
-        }
-        for head in ordered_heads[1:]
-    ]
+    extra_firsts: list[Link] = []
+    for head in ordered_heads[1:]:
+        line_numbers = get_line_numbers(
+            importer=head,
+            imported=route.middle[0],
+            graph=graph,
+            inline_ignored_lines=inline_ignored_lines,
+        )
+        if line_numbers:
+            extra_firsts.append({
+                "importer": head,
+                "imported": route.middle[0],
+                "line_numbers": line_numbers,
+            })
+
     ordered_tails = sorted(route.tails)
-    extra_lasts: list[Link] = [
-        {
-            "imported": tail,
-            "importer": route.middle[-1],
-            "line_numbers": get_line_numbers(
-                imported=tail,
-                importer=route.middle[-1],
-                graph=graph,
-                inline_ignored_lines=inline_ignored_lines,
-            ),
-        }
-        for tail in ordered_tails[1:]
-    ]
+    extra_lasts: list[Link] = []
+    for tail in ordered_tails[1:]:
+        line_numbers = get_line_numbers(
+            imported=tail,
+            importer=route.middle[-1],
+            graph=graph,
+            inline_ignored_lines=inline_ignored_lines,
+        )
+        if line_numbers:
+            extra_lasts.append({
+                "imported": tail,
+                "importer": route.middle[-1],
+                "line_numbers": line_numbers,
+            })
+
     chain_as_strings = [ordered_heads[0], *route.middle, ordered_tails[0]]
-    chain_as_links: Chain = [
-        {
-            "importer": importer,
-            "imported": imported,
-            "line_numbers": get_line_numbers(
-                importer=importer,
-                imported=imported,
-                graph=graph,
-                inline_ignored_lines=inline_ignored_lines,
-            ),
-        }
-        for importer, imported in itertools.pairwise(chain_as_strings)
-    ]
+    chain_as_links: Chain = []
+    for importer, imported in itertools.pairwise(chain_as_strings):
+        line_numbers = get_line_numbers(
+            importer=importer,
+            imported=imported,
+            graph=graph,
+            inline_ignored_lines=inline_ignored_lines,
+        )
+        if line_numbers:
+            chain_as_links.append({
+                "importer": importer,
+                "imported": imported,
+                "line_numbers": line_numbers,
+            })
+
+    if not chain_as_links:
+        return None
+
     return {
         "chain": chain_as_links,
         "extra_firsts": extra_firsts,

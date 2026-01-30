@@ -190,6 +190,8 @@ class LayersContract(Contract):
 
     def render_broken_contract(self, check: ContractCheck) -> None:
         for chains_data in cast(list[_LayerChainData], check.metadata["invalid_dependencies"]):
+            if not chains_data["routes"]:
+                continue
             higher_layer, lower_layer = (
                 chains_data["imported"],
                 chains_data["importer"],
@@ -296,17 +298,20 @@ class LayersContract(Contract):
         graph: grimp.ImportGraph,
         inline_ignored_lines: set[tuple[str, str, int]],
     ) -> list[_LayerChainData]:
-        return [
-            {
-                "imported": dependency.imported,
-                "importer": dependency.importer,
-                "routes": [
-                    build_detailed_chain_from_route(c, graph, inline_ignored_lines)
-                    for c in dependency.routes
-                ],
-            }
-            for dependency in dependencies
-        ]
+        result = []
+        for dependency in dependencies:
+            routes = [
+                route
+                for c in dependency.routes
+                if (route := build_detailed_chain_from_route(c, graph, inline_ignored_lines)) is not None
+            ]
+            if routes:
+                result.append({
+                    "imported": dependency.imported,
+                    "importer": dependency.importer,
+                    "routes": routes,
+                })
+        return result
 
     @staticmethod
     def _grimpify_layers(layers: list[Layer]) -> list[grimp.Layer]:

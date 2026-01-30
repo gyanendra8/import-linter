@@ -10,7 +10,7 @@ TEXT_LOGO = """
  ║║╔══╣╔╗║╔╗║╔╣║ ║║ ╔╬╣╔╗║║ ║│║╔═╝
 ╔╣╠╣║║║╚╝║╚╝║║║╚╗║╚═╝║║║║║╚╗║═╣║
 ╚══╩╩╩╣╔═╩══╩╝╚═╝╚═══╩╩╝╚╩═╩╩═╩╝
-  └──▶║║                    ▲ 
+  └──▶║║                    ▲
       ╚╝────────────────────┘
 """
 BRAND_COLOR = "pale_turquoise1"
@@ -138,6 +138,19 @@ def _render_broken_contracts_details(report: Report) -> None:
     for contract, check in report.get_contracts_and_checks():
         if check.kept:
             continue
+
+        # Calculate total violations for forbidden contracts
+        # If all violations were filtered (e.g., by inline ignores), mark as kept
+        if hasattr(contract, 'type_name') and contract.type_name == 'forbidden':
+            total = sum(
+                len(chains_data["chains"])
+                for chains_data in check.metadata.get("invalid_chains", [])
+                if chains_data.get("chains")
+            )
+            if total == 0:
+                check.kept = True
+                continue
+
         output.print_heading(contract.name, output.HEADING_LEVEL_THREE, style=output.ERROR)
 
         contract.render_broken_contract(check)

@@ -82,6 +82,8 @@ class IndependenceContract(Contract):
 
     def render_broken_contract(self, check: ContractCheck) -> None:
         for chains_data in cast(list[_SubpackageChainData], check.metadata["invalid_chains"]):
+            if not chains_data["chains"]:
+                continue
             downstream, upstream = (
                 chains_data["downstream_module"],
                 chains_data["upstream_module"],
@@ -106,17 +108,20 @@ class IndependenceContract(Contract):
         graph: grimp.ImportGraph,
         inline_ignored_lines: set[tuple[str, str, int]],
     ) -> list[_SubpackageChainData]:
-        return [
-            {
-                "upstream_module": dependency.imported,
-                "downstream_module": dependency.importer,
-                "chains": [
-                    build_detailed_chain_from_route(c, graph, inline_ignored_lines)
-                    for c in dependency.routes
-                ],
-            }
-            for dependency in dependencies
-        ]
+        result = []
+        for dependency in dependencies:
+            chains = [
+                chain
+                for c in dependency.routes
+                if (chain := build_detailed_chain_from_route(c, graph, inline_ignored_lines)) is not None
+            ]
+            if chains:
+                result.append({
+                    "upstream_module": dependency.imported,
+                    "downstream_module": dependency.importer,
+                    "chains": chains,
+                })
+        return result
 
     def _build_subpackage_chain_data(
         self, upstream_module: Module, downstream_module: Module, graph: ImportGraph

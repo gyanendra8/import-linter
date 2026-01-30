@@ -671,6 +671,17 @@ class TestForbiddenContract:
         ):
             contract.check(graph=graph, verbose=False)
 
+    def test_allow_external_subpackages_when_enabled(self):
+        graph = self._build_graph()
+        contract = self._build_contract(
+            forbidden_modules=("mypackage.blue", "requests.something"),
+            include_external_packages=True,
+            allow_external_subpackages=True,
+        )
+
+        check = contract.check(graph=graph, verbose=False)
+        assert check.kept is True
+
     def _build_graph(self):
         graph = ImportGraph()
         for module in (
@@ -736,6 +747,7 @@ class TestForbiddenContract:
         allow_indirect_imports=None,
         source_modules=None,
         as_packages=True,
+        allow_external_subpackages=False,
     ):
         session_options = {"root_packages": ["mypackage"]}
         if include_external_packages:
@@ -753,6 +765,8 @@ class TestForbiddenContract:
                 "true" if allow_indirect_imports else "false"
             )
         contract_options["as_packages"] = "true" if as_packages else "false"
+        if allow_external_subpackages:
+            contract_options["allow_external_subpackages"] = "true"
 
         return ForbiddenContract(
             name="Forbid contract",
