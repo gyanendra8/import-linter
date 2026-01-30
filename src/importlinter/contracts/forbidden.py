@@ -37,6 +37,8 @@ class ForbiddenContract(Contract):
                              False, each of the modules passed in will be treated as a module
                              rather than a package. Default behaviour is True (treat modules as
                              packages).
+        - allow_external_subpackages: Whether to allow subpackages of external packages as forbidden
+                             modules. Default behaviour is False. (Optional.)
     """
 
     type_name = "forbidden"
@@ -47,6 +49,7 @@ class ForbiddenContract(Contract):
     allow_indirect_imports = fields.BooleanField(required=False, default=False)
     unmatched_ignore_imports_alerting = fields.EnumField(AlertLevel, default=AlertLevel.ERROR)
     as_packages = fields.BooleanField(required=False, default=True)
+    allow_external_subpackages = fields.BooleanField(required=False, default=False)
 
     def check(self, graph: ImportGraph, verbose: bool) -> ContractCheck:
         is_kept = True
@@ -199,12 +202,13 @@ class ForbiddenContract(Contract):
         external_forbidden_modules = self._get_external_forbidden_modules(forbidden_modules)
         if external_forbidden_modules:
             if self._graph_was_built_with_externals():
-                for module in external_forbidden_modules:
-                    if module.root_package_name != module.name:
-                        raise ValueError(
-                            f"Invalid forbidden module {module}: "
-                            "subpackages of external packages are not valid."
-                        )
+                if not self.allow_external_subpackages:  # type: ignore
+                    for module in external_forbidden_modules:
+                        if module.root_package_name != module.name:
+                            raise ValueError(
+                                f"Invalid forbidden module {module}: "
+                                "subpackages of external packages are not valid."
+                            )
             else:
                 raise ValueError(
                     "The top level configuration must have include_external_packages=True "
